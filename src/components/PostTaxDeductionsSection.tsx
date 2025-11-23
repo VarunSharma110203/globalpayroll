@@ -1,0 +1,74 @@
+import { DeductionComponent, SystemComponent } from '../types';
+import { Plus } from 'lucide-react';
+import DeductionCard from './DeductionCard';
+
+interface PostTaxDeductionsSectionProps {
+  deductions: DeductionComponent[];
+  currency: string;
+  componentLibrary: SystemComponent[];
+  onUpdate: (deductions: DeductionComponent[]) => void;
+}
+
+export default function PostTaxDeductionsSection({ deductions, currency, componentLibrary, onUpdate }: PostTaxDeductionsSectionProps) {
+  const addDeduction = () => {
+    const newDeduction: DeductionComponent = {
+      id: Date.now().toString(),
+      name: '',
+      code: '',
+      authority: 'mandatory',
+      taxTreatment: 'post_tax',
+      payerSplit: 'employee_only',
+      calculationMethod: 'fixed_amount',
+    };
+    onUpdate([...deductions, newDeduction]);
+  };
+
+  const updateDeduction = (id: string, updates: Partial<DeductionComponent>) => {
+    onUpdate(deductions.map(d => d.id === id ? { ...d, ...updates } : d));
+  };
+
+  const removeDeduction = (id: string) => {
+    onUpdate(deductions.filter(d => d.id !== id));
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">7. Post-Tax Deductions</h2>
+          <p className="text-sm text-slate-600 mt-1">
+            Deductions applied after tax calculation
+          </p>
+        </div>
+        <button
+          onClick={addDeduction}
+          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          Add Deduction
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {deductions.length === 0 ? (
+          <div className="text-center py-12 text-slate-500">
+            <p>No post-tax deductions configured yet.</p>
+          </div>
+        ) : (
+          deductions.map((deduction, index) => (
+            <DeductionCard
+              key={deduction.id}
+              deduction={deduction}
+              index={index}
+              currency={currency}
+              componentLibrary={componentLibrary}
+              onUpdate={(updates) => updateDeduction(deduction.id, updates)}
+              onRemove={() => removeDeduction(deduction.id)}
+            />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
