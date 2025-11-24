@@ -19,6 +19,8 @@ export default function DeductionCard({ deduction, index, currency, componentLib
   const [useManualAmount, setUseManualAmount] = useState(!deduction.systemComponentId);
   const [isSaved, setIsSaved] = useState(false);
 
+  const isShared = deduction.payerSplit === 'both';
+  
   const selectedComponent = componentLibrary.find(c => c.id === deduction.systemComponentId);
   const deductionComponents = componentLibrary.filter(c => c.category === 'deduction');
 
@@ -44,6 +46,32 @@ export default function DeductionCard({ deduction, index, currency, componentLib
     { value: 'conditional', label: 'Conditional' },
   ];
 
+  const percentageAppliedToOptions = [
+    { value: 'gross_salary', label: 'Gross Salary' },
+    { value: 'basic_salary', label: 'Basic Salary' },
+    { value: 'taxable_income', label: 'Taxable Income' },
+  ];
+
+  // Helper function to reset dual/single fields when changing payerSplit
+  const handlePayerSplitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newPayerSplit = e.target.value as 'employee_only' | 'employer_only' | 'both';
+    let updates: Partial<DeductionComponent> = { payerSplit: newPayerSplit };
+    
+    // Clear unused dual/single fields upon changing split type
+    if (newPayerSplit === 'both') {
+      updates = { ...updates, amount: undefined, percentage: undefined, appliedTo: undefined };
+    } else {
+      updates = { 
+        ...updates, 
+        employeeAmount: undefined, employerAmount: undefined, 
+        employeePercentage: undefined, employerPercentage: undefined, 
+        appliedToEmployee: undefined, appliedToEmployer: undefined 
+      };
+    }
+
+    onUpdate(updates);
+  };
+  
   return (
     <div className="border border-slate-200 rounded-lg bg-slate-50">
       <div className="flex items-center justify-between p-4 bg-white rounded-t-lg border-b border-slate-200">
@@ -118,7 +146,7 @@ export default function DeductionCard({ deduction, index, currency, componentLib
               <label className="block text-xs font-medium text-slate-700 mb-1">Payer Split</label>
               <select
                 value={deduction.payerSplit}
-                onChange={(e) => onUpdate({ payerSplit: e.target.value as any })}
+                onChange={handlePayerSplitChange}
                 className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="employee_only">Employee Only</option>
@@ -190,7 +218,7 @@ export default function DeductionCard({ deduction, index, currency, componentLib
             </div>
           )}
 
-          {/* Component Selection / Manual Amount */}
+          {/* Component Selection / Manual Amount - START */}
           {deduction.calculationMethod === 'fixed_amount' && (
             <div className="space-y-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between mb-2">
@@ -202,7 +230,7 @@ export default function DeductionCard({ deduction, index, currency, componentLib
                     if (!useManualAmount) {
                       onUpdate({ systemComponentId: undefined });
                     } else {
-                      onUpdate({ amount: undefined });
+                      onUpdate({ amount: undefined, employeeAmount: undefined, employerAmount: undefined });
                     }
                   }}
                   className="text-xs text-primary-600 hover:text-primary-700"
@@ -211,20 +239,54 @@ export default function DeductionCard({ deduction, index, currency, componentLib
                 </button>
               </div>
 
+              {/* Fixed Amount Input Fields */}
               {useManualAmount ? (
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Manual Amount</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-500">{currency}</span>
-                    <input
-                      type="number"
-                      value={deduction.amount || ''}
-                      onChange={(e) => onUpdate({ amount: parseFloat(e.target.value) || undefined })}
-                      placeholder="0.00"
-                      className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
+                isShared ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Employee Fixed Amount */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Employee Amount</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">{currency}</span>
+                        <input
+                          type="number"
+                          value={deduction.employeeAmount || ''}
+                          onChange={(e) => onUpdate({ employeeAmount: parseFloat(e.target.value) || undefined })}
+                          placeholder="0.00"
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+                    {/* Employer Fixed Amount */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Employer Amount</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">{currency}</span>
+                        <input
+                          type="number"
+                          value={deduction.employerAmount || ''}
+                          onChange={(e) => onUpdate({ employerAmount: parseFloat(e.target.value) || undefined })}
+                          placeholder="0.00"
+                          className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Manual Amount</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500">{currency}</span>
+                      <input
+                        type="number"
+                        value={deduction.amount || ''}
+                        onChange={(e) => onUpdate({ amount: parseFloat(e.target.value) || undefined })}
+                        placeholder="0.00"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      />
+                    </div>
+                  </div>
+                )
               ) : (
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Select System Component</label>
@@ -237,7 +299,9 @@ export default function DeductionCard({ deduction, index, currency, componentLib
                         systemComponentId: componentId,
                         name: selected?.name || deduction.name,
                         code: selected?.code || deduction.code,
-                        amount: undefined
+                        amount: undefined, // Clear manual amounts when switching to system component
+                        employeeAmount: undefined,
+                        employerAmount: undefined,
                       });
                     }}
                     className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
@@ -257,37 +321,97 @@ export default function DeductionCard({ deduction, index, currency, componentLib
               )}
             </div>
           )}
+          {/* Component Selection / Manual Amount - END */}
 
+          {/* Percentage Input Fields - START */}
           {deduction.calculationMethod === 'percentage' && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Percentage</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    value={deduction.percentage || ''}
-                    onChange={(e) => onUpdate({ percentage: parseFloat(e.target.value) || undefined })}
-                    placeholder="0.00"
-                    step="0.01"
-                    className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  />
-                  <span className="text-slate-500">%</span>
+            isShared ? (
+              <div className="grid grid-cols-2 gap-4 border p-4 rounded-lg bg-blue-50 border-blue-200">
+                {/* Employee Percentage */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Employee Percentage</label>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="number"
+                      value={deduction.employeePercentage || ''}
+                      onChange={(e) => onUpdate({ employeePercentage: parseFloat(e.target.value) || undefined })}
+                      placeholder="0.00"
+                      step="0.01"
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span className="text-slate-500">%</span>
+                  </div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Employee Applied To</label>
+                  <select
+                    value={deduction.appliedToEmployee || 'gross_salary'}
+                    onChange={(e) => onUpdate({ appliedToEmployee: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    {percentageAppliedToOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Employer Percentage */}
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Employer Percentage</label>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="number"
+                      value={deduction.employerPercentage || ''}
+                      onChange={(e) => onUpdate({ employerPercentage: parseFloat(e.target.value) || undefined })}
+                      placeholder="0.00"
+                      step="0.01"
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span className="text-slate-500">%</span>
+                  </div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Employer Applied To</label>
+                  <select
+                    value={deduction.appliedToEmployer || 'gross_salary'}
+                    onChange={(e) => onUpdate({ appliedToEmployer: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    {percentageAppliedToOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Applied To</label>
-                <select
-                  value={deduction.appliedTo || 'gross_salary'}
-                  onChange={(e) => onUpdate({ appliedTo: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                >
-                  <option value="gross_salary">Gross Salary</option>
-                  <option value="basic_salary">Basic Salary</option>
-                  <option value="taxable_income">Taxable Income</option>
-                </select>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Percentage</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={deduction.percentage || ''}
+                      onChange={(e) => onUpdate({ percentage: parseFloat(e.target.value) || undefined })}
+                      placeholder="0.00"
+                      step="0.01"
+                      className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    />
+                    <span className="text-slate-500">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Applied To</label>
+                  <select
+                    value={deduction.appliedTo || 'gross_salary'}
+                    onChange={(e) => onUpdate({ appliedTo: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    {percentageAppliedToOptions.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            )
           )}
+          {/* Percentage Input Fields - END */}
+
 
           {deduction.calculationMethod === 'progressive_slab' && (
             <div>
@@ -420,4 +544,3 @@ export default function DeductionCard({ deduction, index, currency, componentLib
     </div>
   );
 }
-

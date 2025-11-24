@@ -114,9 +114,20 @@ export interface DeductionComponent {
   payerSplit: 'employee_only' | 'employer_only' | 'both';
   calculationMethod: CalculationMethod;
   systemComponentId?: string; // Reference to system component
+  
+  // Single contribution fields (used when payerSplit is NOT 'both')
   amount?: number; // Manual amount (if not using system component)
   percentage?: number;
-  appliedTo?: string;
+  appliedTo?: string; // Base for percentage calculation when NOT 'both'
+
+  // Dual contribution fields (used when payerSplit IS 'both')
+  employeeAmount?: number; // Employee's manual fixed amount
+  employerAmount?: number; // Employer's manual fixed amount
+  employeePercentage?: number; // Employee's percentage
+  employerPercentage?: number; // Employer's percentage
+  appliedToEmployee?: string; // Base for employee percentage calculation
+  appliedToEmployer?: string; // Base for employer percentage calculation
+  
   formula?: string;
   variables?: string[];
   conditions?: string[];
