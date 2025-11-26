@@ -84,7 +84,7 @@ export default function ConditionalRuleBuilder({
 
   // Get all available fields (system components + common fields)
   const availableFields = [
-    ...componentLibrary.map(c => ({ value: c.databaseField, label: `${c.name} (${c.code})` })),
+    ...componentLibrary.map(c => ({ value: c.databaseField, id: c.id, label: `${c.name} (${c.code})` })),
     { value: 'vehicle_cc', label: 'Vehicle CC' },
     { value: 'basic_salary', label: 'Basic Salary' },
     { value: 'gross_salary', label: 'Gross Salary' },
@@ -138,6 +138,7 @@ export default function ConditionalRuleBuilder({
               rule={rule}
               currency={currency}
               availableFields={availableFields}
+              componentLibrary={componentLibrary}
               onUpdate={(updates) => updateRule(rule.id, updates)}
               onRemove={() => removeRule(rule.id)}
               onAddCondition={() => addCondition(rule.id)}
@@ -155,6 +156,7 @@ function ConditionalRuleCard({
   rule,
   currency,
   availableFields,
+  componentLibrary,
   onUpdate,
   onRemove,
   onAddCondition,
@@ -163,13 +165,68 @@ function ConditionalRuleCard({
 }: {
   rule: ConditionalRule;
   currency: string;
-  availableFields: { value: string; label: string }[];
+  availableFields: { value: string; id?: string; label: string }[];
+  componentLibrary: SystemComponent[];
   onUpdate: (updates: Partial<ConditionalRule>) => void;
   onRemove: () => void;
   onAddCondition: () => void;
   onUpdateCondition: (index: number, updates: Partial<Condition>) => void;
   onRemoveCondition: (index: number) => void;
 }) {
+  
+  // 1. Define Fixed Bases
+  const fixedAppliedToOptions: { value: string; label: string }[] = [
+    { value: 'gross_salary', label: 'Gross Salary (System)' },
+    { value: 'basic_salary', label: 'Basic Salary (System)' },
+    { value: 'taxable_income', label: 'Taxable Income (System)' },
+  ];
+
+  // 2. Combine Fixed Bases with Custom Components for flexibility
+  const appliedToOptions = [
+    ...fixedAppliedToOptions,
+    ...componentLibrary 
+      .filter(c => c.category === 'earning' || c.category === 'other' || c.category === 'deduction') 
+      .map(c => ({ 
+        value: c.id, // Use component ID as the value to uniquely identify it
+        label: `${c.name} (${c.code}) - ${c.category.toUpperCase()} Base` 
+      })),
+  ];
+
+  // Helper to determine the current selected base value
+  const getCurrentAppliedToValue = () => {
+    // If a custom component ID is saved, use that ID.
+    if (rule.thenAction.appliedToSystemComponentId) {
+      return rule.thenAction.appliedToSystemComponentId;
+    }
+    // Otherwise, use the fixed option string value or default.
+    return rule.thenAction.appliedTo || 'gross_salary';
+  }
+
+  // Handler for Applied To field change
+  const handleAppliedToChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    const isFixedOption = fixedAppliedToOptions.some(opt => opt.value === value);
+
+    if (isFixedOption) {
+      onUpdate({
+        thenAction: {
+          ...rule.thenAction,
+          appliedTo: value,
+          appliedToSystemComponentId: undefined // Clear custom ID
+        }
+      });
+    } else {
+      // Must be a custom component ID from the library
+      onUpdate({
+        thenAction: {
+          ...rule.thenAction,
+          appliedTo: undefined, // Clear fixed string
+          appliedToSystemComponentId: value // Save Component ID
+        }
+      });
+    }
+  };
+  
   return (
     <div className="border-2 border-slate-300 rounded-lg bg-white p-4">
       <div className="flex items-center justify-between mb-3">
@@ -332,6 +389,9 @@ function ConditionalRuleCard({
                     type: actionType,
                     amount: actionType === 'amount' ? rule.thenAction.amount || 0 : undefined,
                     percentage: actionType === 'percentage' ? rule.thenAction.percentage || 0 : undefined,
+                    // Clear appliedTo fields if not percentage
+                    appliedTo: actionType === 'percentage' ? rule.thenAction.appliedTo : undefined, 
+                    appliedToSystemComponentId: actionType === 'percentage' ? rule.thenAction.appliedToSystemComponentId : undefined,
                   }
                 });
               }}
@@ -386,18 +446,13 @@ function ConditionalRuleCard({
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Applied To</label>
                 <select
-                  value={rule.thenAction.appliedTo || 'gross_salary'}
-                  onChange={(e) => onUpdate({
-                    thenAction: {
-                      ...rule.thenAction,
-                      appliedTo: e.target.value
-                    }
-                  })}
+                  value={getCurrentAppliedToValue()}
+                  onChange={handleAppliedToChange}
                   className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  <option value="gross_salary">Gross Salary</option>
-                  <option value="basic_salary">Basic Salary</option>
-                  <option value="taxable_income">Taxable Income</option>
+                  {appliedToOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
             </>
@@ -429,7 +484,7 @@ function ConditionalRuleCard({
               })}
               {' '}THEN → {
                 rule.thenAction.type === 'amount' ? `${currency} ${rule.thenAction.amount}` : 
-                rule.thenAction.type === 'percentage' ? `${rule.thenAction.percentage}%` : 
+                rule.thenAction.type === 'percentage' ? `${rule.thenAction.percentage}% of ${getCurrentAppliedToValue()}` : 
                 'Calculation Method'
               }
             </span>
