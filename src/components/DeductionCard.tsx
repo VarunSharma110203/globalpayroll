@@ -22,7 +22,8 @@ export default function DeductionCard({ deduction, index, currency, componentLib
   const isShared = deduction.payerSplit === 'both';
   
   const selectedComponent = componentLibrary.find(c => c.id === deduction.systemComponentId);
-  const deductionComponents = componentLibrary.filter(c => c.category === 'deduction');
+  // FIX: Show ALL components, as deductions can be based on 'earning' or 'other' fields too.
+  const allAvailableComponents = componentLibrary; 
 
   // Force mandatory deductions to use official currency
   useEffect(() => {
@@ -307,8 +308,11 @@ export default function DeductionCard({ deduction, index, currency, componentLib
                     className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="">-- Select Component --</option>
-                    {deductionComponents.map(comp => (
-                      <option key={comp.id} value={comp.id}>{comp.name} ({comp.code})</option>
+                    {/* FIX: Use allAvailableComponents for full selection */}
+                    {allAvailableComponents.map(comp => (
+                      <option key={comp.id} value={comp.id}>
+                        {comp.name} ({comp.code}) - {comp.category.toUpperCase()}
+                      </option>
                     ))}
                   </select>
                   {selectedComponent && (

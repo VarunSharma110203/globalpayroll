@@ -1,4 +1,4 @@
-import { DeductionComponent, SystemComponent } from '../types';
+import { DeductionComponent, SystemComponent, MultiCurrencyConfig } from '../types';
 import { Plus } from 'lucide-react';
 import DeductionCard from './DeductionCard';
 
@@ -6,10 +6,11 @@ interface PostTaxDeductionsSectionProps {
   deductions: DeductionComponent[];
   currency: string;
   componentLibrary: SystemComponent[];
+  multiCurrency?: MultiCurrencyConfig;
   onUpdate: (deductions: DeductionComponent[]) => void;
 }
 
-export default function PostTaxDeductionsSection({ deductions, currency, componentLibrary, onUpdate }: PostTaxDeductionsSectionProps) {
+export default function PostTaxDeductionsSection({ deductions, currency, componentLibrary, multiCurrency, onUpdate }: PostTaxDeductionsSectionProps) {
   const addDeduction = () => {
     const newDeduction: DeductionComponent = {
       id: Date.now().toString(),
@@ -62,6 +63,7 @@ export default function PostTaxDeductionsSection({ deductions, currency, compone
               index={index}
               currency={currency}
               componentLibrary={componentLibrary}
+              multiCurrency={multiCurrency}
               onUpdate={(updates) => updateDeduction(deduction.id, updates)}
               onRemove={() => removeDeduction(deduction.id)}
             />
@@ -71,4 +73,3 @@ export default function PostTaxDeductionsSection({ deductions, currency, compone
     </div>
   );
 }
-

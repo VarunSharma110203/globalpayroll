@@ -178,6 +178,7 @@ function App() {
               deductions={config.postTaxDeductions}
               currency={config.currency}
               componentLibrary={config.componentLibrary}
+              multiCurrency={config.multiCurrency}
               onUpdate={(deductions) => updateConfig({ postTaxDeductions: deductions })}
             />
 
@@ -202,4 +203,3 @@ function App() {
 }
 
 export default App;
-
