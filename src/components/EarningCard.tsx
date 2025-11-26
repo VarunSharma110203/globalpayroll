@@ -1,5 +1,5 @@
-import { EarningComponent, CalculationMethod, SystemComponent, MultiCurrencyConfig } from '../types';
-import { X, ChevronDown, ChevronUp, Database, Check } from 'lucide-react';
+import { EarningComponent, CalculationMethod, SystemComponent, MultiCurrencyConfig, BenefitEligibility, PartialTaxabilityConfig } from '../types';
+import { X, ChevronDown, ChevronUp, Database, Check, Shield, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import ConditionalRuleBuilder from './ConditionalRuleBuilder';
 
@@ -13,6 +13,22 @@ interface EarningCardProps {
   onRemove: () => void;
 }
 
+// Default eligibility for new components
+const DEFAULT_ELIGIBILITY: BenefitEligibility = {
+  pensionable: false,
+  insurable: false,
+  contributableSocialSecurity: false,
+  countTowardsBenefits: false,
+};
+
+// Fixed bases that always appear
+const fixedAppliedToOptions: { value: string; label: string }[] = [
+  { value: 'gross_salary', label: 'Gross Salary (System)' },
+  { value: 'basic_salary', label: 'Basic Salary (System)' },
+  { value: 'taxable_income', label: 'Taxable Income (System)' },
+];
+
+
 export default function EarningCard({ earning, index, currency, componentLibrary, multiCurrency, onUpdate, onRemove }: EarningCardProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [useManualAmount, setUseManualAmount] = useState(!earning.systemComponentId);
@@ -20,6 +36,17 @@ export default function EarningCard({ earning, index, currency, componentLibrary
 
   const selectedComponent = componentLibrary.find(c => c.id === earning.systemComponentId);
   const earningComponents = componentLibrary.filter(c => c.category === 'earning');
+  
+  // Combine fixed bases with all Earning/Other system components for "Applied To" dropdown
+  const appliedToOptions = [
+    ...fixedAppliedToOptions,
+    ...componentLibrary
+      .filter(c => c.category === 'earning' || c.category === 'other') 
+      .map(c => ({ 
+        value: c.id, // Store component ID for the Applied To base
+        label: `${c.name} (${c.code}) - ${c.category.toUpperCase()}` 
+      })),
+  ];
 
   const calculationMethods: { value: CalculationMethod; label: string }[] = [
     { value: 'fixed_amount', label: 'Fixed Amount' },
@@ -30,6 +57,40 @@ export default function EarningCard({ earning, index, currency, componentLibrary
     { value: 'table_lookup', label: 'Table Lookup' },
     { value: 'conditional', label: 'Conditional' },
   ];
+  
+  // Handlers for Benefit Eligibility
+  const toggleEligibility = (key: keyof BenefitEligibility) => {
+    const currentEligibility = earning.benefitEligibility || DEFAULT_ELIGIBILITY;
+    onUpdate({
+      benefitEligibility: {
+        ...currentEligibility,
+        [key]: !currentEligibility[key],
+      },
+    });
+  };
+
+  // Handler for Applied To field change
+  const handleAppliedToChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    // Check if the selected value is a fixed option or a component ID (using the component ID as the value)
+    const isFixedOption = fixedAppliedToOptions.some(opt => opt.value === value);
+
+    if (!isFixedOption) {
+      // It's a system component ID
+      onUpdate({ appliedTo: undefined, appliedToSystemComponentId: value });
+    } else {
+      // It's a fixed option (e.g., gross_salary)
+      onUpdate({ appliedTo: value, appliedToSystemComponentId: undefined });
+    }
+  };
+
+  // Determine current selected value for the dropdown
+  const getCurrentAppliedToValue = () => {
+    if (earning.appliedToSystemComponentId) {
+      return earning.appliedToSystemComponentId;
+    }
+    return earning.appliedTo || 'gross_salary'; // Default to gross_salary if neither is set
+  }
 
   return (
     <div className="border border-slate-200 rounded-lg bg-slate-50">
@@ -129,7 +190,7 @@ export default function EarningCard({ earning, index, currency, componentLibrary
               <label className="block text-xs font-medium text-slate-700 mb-1">Taxability</label>
               <select
                 value={earning.taxabilityStatus}
-                onChange={(e) => onUpdate({ taxabilityStatus: e.target.value as any })}
+                onChange={(e) => onUpdate({ taxabilityStatus: e.target.value as any, partialTaxabilityConfig: undefined })} // Clear config when changing status
                 className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 <option value="fully_taxable">Fully Taxable</option>
@@ -138,8 +199,66 @@ export default function EarningCard({ earning, index, currency, componentLibrary
               </select>
             </div>
           </div>
+          
+          {/* PARTIAL TAXABILITY CONFIGURATION SECTION */}
+          {earning.taxabilityStatus === 'partially_taxable' && (
+            <PartialTaxExemptionConfig
+                config={earning.partialTaxabilityConfig}
+                onUpdate={(config) => onUpdate({ partialTaxabilityConfig: config })}
+                currency={currency}
+            />
+          )}
+          {/* END PARTIAL TAXABILITY SECTION */}
+          
+          {/* Benefit Eligibility Section - NEW */}
+          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="w-4 h-4 text-indigo-700" />
+              <h4 className="text-sm font-semibold text-indigo-900">Benefit Eligibility</h4>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={earning.benefitEligibility?.pensionable ?? DEFAULT_ELIGIBILITY.pensionable}
+                  onChange={() => toggleEligibility('pensionable')}
+                  className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                />
+                Pensionable
+              </label>
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={earning.benefitEligibility?.insurable ?? DEFAULT_ELIGIBILITY.insurable}
+                  onChange={() => toggleEligibility('insurable')}
+                  className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                />
+                Insurable
+              </label>
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={earning.benefitEligibility?.contributableSocialSecurity ?? DEFAULT_ELIGIBILITY.contributableSocialSecurity}
+                  onChange={() => toggleEligibility('contributableSocialSecurity')}
+                  className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                />
+                SS Contributable
+              </label>
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={earning.benefitEligibility?.countTowardsBenefits ?? DEFAULT_ELIGIBILITY.countTowardsBenefits}
+                  onChange={() => toggleEligibility('countTowardsBenefits')}
+                  className="w-4 h-4 text-primary-600 rounded focus:ring-primary-500"
+                />
+                Counts for Benefits
+              </label>
+            </div>
+          </div>
+          {/* End Benefit Eligibility Section */}
 
-          {/* Calculation Method */}
+
+          {/* Calculation Method (unchanged) */}
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Calculation Method</label>
             <select
@@ -153,7 +272,7 @@ export default function EarningCard({ earning, index, currency, componentLibrary
             </select>
           </div>
 
-          {/* Multi-Currency Selection */}
+          {/* Multi-Currency Selection (unchanged) */}
           {multiCurrency?.enabled && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between mb-2">
@@ -267,7 +386,7 @@ export default function EarningCard({ earning, index, currency, componentLibrary
             </div>
           )}
 
-          {/* Component Selection / Manual Amount */}
+          {/* Component Selection / Manual Amount (Fixed Amount) */}
           {earning.calculationMethod === 'fixed_amount' && (
             <div className="space-y-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between mb-2">
@@ -335,6 +454,7 @@ export default function EarningCard({ earning, index, currency, componentLibrary
             </div>
           )}
 
+          {/* Percentage Calculation - UPDATED Applied To field */}
           {earning.calculationMethod === 'percentage' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -354,13 +474,13 @@ export default function EarningCard({ earning, index, currency, componentLibrary
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">Applied To</label>
                 <select
-                  value={earning.appliedTo || 'gross_salary'}
-                  onChange={(e) => onUpdate({ appliedTo: e.target.value })}
+                  value={getCurrentAppliedToValue()}
+                  onChange={handleAppliedToChange}
                   className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                 >
-                  <option value="gross_salary">Gross Salary</option>
-                  <option value="basic_salary">Basic Salary</option>
-                  <option value="taxable_income">Taxable Income</option>
+                  {appliedToOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -498,3 +618,110 @@ export default function EarningCard({ earning, index, currency, componentLibrary
   );
 }
 
+// NEW SUB-COMPONENT FOR PARTIAL TAXABILITY CONFIGURATION
+function PartialTaxExemptionConfig({ config, onUpdate, currency }: {
+    config: PartialTaxabilityConfig | undefined;
+    onUpdate: (config: PartialTaxabilityConfig) => void;
+    currency: string;
+}) {
+  
+  const currentConfig = config || { exemptionMethod: 'fixed_amount' };
+  
+  const updateConfig = (updates: Partial<PartialTaxabilityConfig>) => {
+    onUpdate({ ...currentConfig, ...updates });
+  };
+  
+  const exemptionMethods: { value: PartialTaxabilityConfig['exemptionMethod']; label: string }[] = [
+    { value: 'fixed_amount', label: 'Fixed Amount Exempt' },
+    { value: 'percentage_of_earning', label: 'Percentage of Earning Exempt' },
+    { value: 'formula', label: 'Formula-Based Exemption' },
+  ];
+  
+  return (
+    <div className="p-3 bg-red-50 border border-red-200 rounded-lg space-y-3">
+        <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-red-700" />
+            <h4 className="text-sm font-semibold text-red-900">Partially Taxable Exemption Rule</h4>
+        </div>
+
+        <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Exemption Method</label>
+            <select
+              value={currentConfig.exemptionMethod}
+              onChange={(e) => updateConfig({ exemptionMethod: e.target.value as PartialTaxabilityConfig['exemptionMethod'] })}
+              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {exemptionMethods.map(method => (
+                <option key={method.value} value={method.value}>{method.label}</option>
+              ))}
+            </select>
+        </div>
+
+        {(currentConfig.exemptionMethod === 'fixed_amount' || currentConfig.exemptionMethod === 'percentage_of_earning') && (
+            <div className="grid grid-cols-2 gap-4">
+                {currentConfig.exemptionMethod === 'fixed_amount' && (
+                    <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Exempt Amount</label>
+                        <div className="flex items-center gap-2">
+                            <span className="text-slate-500">{currency}</span>
+                            <input
+                                type="number"
+                                value={currentConfig.exemptAmount || ''}
+                                onChange={(e) => updateConfig({ exemptAmount: parseFloat(e.target.value) || undefined })}
+                                placeholder="0.00"
+                                className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {currentConfig.exemptionMethod === 'percentage_of_earning' && (
+                    <div>
+                        <label className="block text-xs font-medium text-slate-700 mb-1">Exempt Percentage</label>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="number"
+                                value={currentConfig.exemptPercentage || ''}
+                                onChange={(e) => updateConfig({ exemptPercentage: parseFloat(e.target.value) || undefined })}
+                                placeholder="0.00"
+                                step="0.01"
+                                className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                            />
+                            <span className="text-slate-500">%</span>
+                        </div>
+                        <p className='text-xs text-slate-600 mt-1'>Applied to this earning's total amount.</p>
+                    </div>
+                )}
+
+                <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Max Exemption Amount (Cap)</label>
+                    <div className="flex items-center gap-2">
+                        <span className="text-slate-500">{currency}</span>
+                        <input
+                            type="number"
+                            value={currentConfig.maxExemptionAmount || ''}
+                            onChange={(e) => updateConfig({ maxExemptionAmount: parseFloat(e.target.value) || undefined })}
+                            placeholder="0.00 (Optional)"
+                            className="flex-1 px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                    </div>
+                </div>
+            </div>
+        )}
+        
+        {currentConfig.exemptionMethod === 'formula' && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Exemption Formula (Calculates Exempt Amount)</label>
+              <textarea
+                value={currentConfig.exemptionFormula || ''}
+                onChange={(e) => updateConfig({ exemptionFormula: e.target.value })}
+                placeholder="e.g., MIN(actual_rent - 0.1 * basic_salary, 0.4 * basic_salary, 1500)"
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 font-mono"
+                rows={2}
+              />
+              <p className='text-xs text-slate-600 mt-1'>This formula calculates the *amount* that will be tax-exempt.</p>
+            </div>
+        )}
+    </div>
+  );
+}
