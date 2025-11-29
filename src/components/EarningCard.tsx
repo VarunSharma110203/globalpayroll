@@ -200,6 +200,32 @@ export default function EarningCard({ earning, index, currency, componentLibrary
             </div>
           </div>
           
+          {/* Output Mapping Section - NEW */}
+          <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg">
+              <h4 className="text-sm font-semibold text-slate-700 mb-2">Output Mapping (Component Result Destination)</h4>
+              <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Map Final Calculated Value To</label>
+                  <select
+                      value={earning.outputSystemComponentId || ''}
+                      onChange={(e) => onUpdate({ outputSystemComponentId: e.target.value || undefined })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                      <option value="">-- No Specific Output Mapping -- (Value is automatically included in Gross Pay)</option>
+                      {componentLibrary
+                          .filter(c => c.category === 'earning') // Only allow mapping to Earning fields
+                          .map(comp => (
+                              <option key={comp.id} value={comp.id}>
+                                  {comp.name} ({comp.code}) - DB Field: {comp.databaseField}
+                              </option>
+                          ))}
+                  </select>
+                  <p className="text-xs text-slate-500 mt-1">
+                      (Optional) This ensures the calculated value is stored against a specific field in your system, typically an **Earning** component.
+                  </p>
+              </div>
+          </div>
+          {/* End Output Mapping Section */}
+          
           {/* PARTIAL TAXABILITY CONFIGURATION SECTION */}
           {earning.taxabilityStatus === 'partially_taxable' && (
             <PartialTaxExemptionConfig
@@ -210,7 +236,7 @@ export default function EarningCard({ earning, index, currency, componentLibrary
           )}
           {/* END PARTIAL TAXABILITY SECTION */}
           
-          {/* Benefit Eligibility Section - NEW */}
+          {/* Benefit Eligibility Section */}
           <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
             <div className="flex items-center gap-2 mb-3">
               <Shield className="w-4 h-4 text-indigo-700" />
@@ -258,7 +284,7 @@ export default function EarningCard({ earning, index, currency, componentLibrary
           {/* End Benefit Eligibility Section */}
 
 
-          {/* Calculation Method (unchanged) */}
+          {/* Calculation Method */}
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Calculation Method</label>
             <select
@@ -273,6 +299,7 @@ export default function EarningCard({ earning, index, currency, componentLibrary
           </div>
 
           {/* Multi-Currency Selection (unchanged) */}
+          {/* ... (multi-currency section omitted for brevity but should be included) ... */}
           {multiCurrency?.enabled && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between mb-2">
@@ -386,7 +413,7 @@ export default function EarningCard({ earning, index, currency, componentLibrary
             </div>
           )}
 
-          {/* Component Selection / Manual Amount (Fixed Amount) */}
+          {/* Component Selection / Manual Amount (Fixed Amount) (unchanged) */}
           {earning.calculationMethod === 'fixed_amount' && (
             <div className="space-y-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between mb-2">

@@ -11,7 +11,7 @@ import PostTaxCreditsSection from './components/PostTaxCreditsSection';
 import PostTaxDeductionsSection from './components/PostTaxDeductionsSection';
 import PostNetSection from './components/PostNetSection';
 import SummarySection from './components/SummarySection';
-import { Globe, Download } from 'lucide-react';
+import { Globe, FileText, Table } from 'lucide-react'; // REMOVED 'Download'
 import { SystemComponent } from './types';
 
 // Pre-defined system components based on user's examples
@@ -29,6 +29,91 @@ const DEFAULT_COMPONENTS: SystemComponent[] = [
   { id: '11', name: 'Gift Card', code: 'GIFTCARD', databaseField: 'giftcard_amount', category: 'earning' },
   { id: '12', name: 'Leave Encashment', code: 'LEAVE_ENCASHMENT', databaseField: 'leave_encashment', category: 'earning' },
 ];
+
+// Utility function to flatten the complex object into CSV lines
+const convertConfigToCSV = (config: PayrollConfiguration): string => {
+  const getAppliedToLabel = (appliedTo?: string, appliedToSystemComponentId?: string): string => {
+      if (appliedToSystemComponentId) {
+          const baseComp = config.componentLibrary.find(c => c.id === appliedToSystemComponentId);
+          return baseComp ? `${baseComp.name} (${baseComp.code})` : appliedToSystemComponentId;
+      }
+      return appliedTo || 'N/A';
+  };
+
+  let csv = "Section,Index,Name,Code,Category,Type,Taxability/Treatment,Payer Split,Value/Method,Base/AppliedTo,Currency,Pensionable,Insurable,SS_Contributable,Counts_for_Benefits\n";
+  
+  const flattenComponent = (comp: any, section: string, index: number, category: string) => {
+    // 1. Determine Value/Method
+    let valueMethod = comp.calculationMethod;
+    if (comp.amount) valueMethod = `Fixed Amount: ${comp.amount}`;
+    if (comp.percentage) valueMethod = `Percentage: ${comp.percentage}%`;
+    if (comp.formula) valueMethod = `Formula: ${comp.formula}`;
+    
+    // 2. Base for calculation
+    const appliedTo = getAppliedToLabel(comp.appliedTo, comp.appliedToSystemComponentId);
+    
+    // 3. Eligibility (Earnings only, defaults to NO)
+    const eligibility = comp.benefitEligibility || {};
+    const p = eligibility.pensionable ? 'YES' : 'NO';
+    const i = eligibility.insurable ? 'YES' : 'NO';
+    const ssc = eligibility.contributableSocialSecurity ? 'YES' : 'NO';
+    const cfb = eligibility.countTowardsBenefits ? 'YES' : 'NO';
+
+    // 4. Tax/Payer info
+    const tax = comp.taxTreatment || comp.taxabilityStatus || 'N/A';
+    const payer = comp.payerSplit || 'N/A';
+    const type = comp.type || 'N/A';
+    const finalCurrency = comp.currency || config.currency || 'N/A';
+
+    // Handle split contribution details for clarity
+    if (comp.payerSplit === 'both') {
+      let empVal = comp.employeeAmount ? comp.employeeAmount : comp.employeePercentage ? `${comp.employeePercentage}%` : valueMethod;
+      let empBase = getAppliedToLabel(comp.appliedToEmployee, comp.appliedToSystemComponentId);
+      let employerVal = comp.employerAmount ? comp.employerAmount : comp.employerPercentage ? `${comp.employerPercentage}%` : valueMethod;
+      let employerBase = getAppliedToLabel(comp.appliedToEmployer, comp.appliedToSystemComponentId);
+
+      // Employee line
+      csv += `"${section} (Employee)",${index + 1},"${comp.name}",${comp.code},${category},${type},${tax},Employee,"${empVal}","${empBase}",${finalCurrency},${p},${i},${ssc},${cfb}\n`;
+      // Employer line - assuming employer contributions don't count towards employee benefits
+      csv += `"${section} (Employer)",${index + 1},"${comp.name}",${comp.code},${category},${type},${tax},Employer,"${employerVal}","${employerBase}",${finalCurrency},NO,NO,NO,NO\n`;
+      return;
+    }
+
+    // Single Payer line
+    csv += `"${section}",${index + 1},"${comp.name}",${comp.code},${category},${type},${tax},${payer},"${valueMethod}","${appliedTo}",${finalCurrency},${p},${i},${ssc},${cfb}\n`;
+  };
+  
+  // Add all components
+  config.earnings.forEach((e, i) => flattenComponent(e, 'Earnings', i, 'Earning'));
+  config.mandatoryDeductions.forEach((d, i) => flattenComponent(d, 'Mandatory Deductions', i, 'Deduction'));
+  config.voluntaryDeductions.forEach((d, i) => flattenComponent(d, 'Voluntary Deductions', i, 'Deduction'));
+  config.postTaxDeductions.forEach((d, i) => flattenComponent(d, 'Post-Tax Deductions', i, 'Deduction'));
+  config.postNetItems.forEach((n, i) => flattenComponent(n, 'Post-Net Items', i, n.type));
+
+  // Handle Tax Configuration (Simplified)
+  if (config.tax) {
+      let taxMethod = config.tax.taxSystemType.replace('_', ' ');
+      if (config.tax.taxSystemType === 'flat_tax' && config.tax.rate) {
+          taxMethod = `Flat Tax @ ${config.tax.rate}%`;
+      } else if (config.tax.brackets && config.tax.brackets.length > 0) {
+          taxMethod = taxMethod + ` with ${config.tax.brackets.length} brackets.`;
+      }
+      csv += `"Tax Configuration",1,"Income Tax","TAX",Tax,N/A,N/A,N/A,"${taxMethod}",N/A,${config.currency},NO,NO,NO,NO\n`;
+  }
+  
+  // Handle Tax Credits (Simplified)
+  config.preTaxCredits.forEach((c, i) => {
+    const valueMethod = c.amount ? `Fixed Amount: ${c.amount}` : 'Formula/Dependent';
+    csv += `"Tax Credits (Pre-Tax)",${i + 1},"${c.name}",${c.code},Credit,N/A,Pre-Tax,N/A,"${valueMethod}",N/A,${config.currency},NO,NO,NO,NO\n`;
+  });
+  config.postTaxCredits.forEach((c, i) => {
+    const valueMethod = c.amount ? `Fixed Amount: ${c.amount}` : 'Formula/Dependent';
+    csv += `"Tax Credits (Post-Tax)",${i + 1},"${c.name}",${c.code},Credit,N/A,Post-Tax,N/A,"${valueMethod}",N/A,${config.currency},NO,NO,NO,NO\n`;
+  });
+
+  return csv;
+};
+
 
 function App() {
   const [config, setConfig] = useState<PayrollConfiguration>({
@@ -49,13 +134,26 @@ function App() {
     setConfig(prev => ({ ...prev, ...updates }));
   };
 
-  const exportConfig = () => {
+  // Function to export config as JSON (original functionality)
+  const exportJsonConfig = () => {
     const dataStr = JSON.stringify(config, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `payroll-config-${config.country || 'default'}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  
+  // Function to export config as CSV
+  const exportCsvConfig = () => {
+    const csvData = convertConfigToCSV(config);
+    const dataBlob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `payroll-config-${config.country || 'default'}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -105,12 +203,22 @@ function App() {
                   <option value="AUD">AUD</option>
                 </select>
               </div>
+              {/* TWO SEPARATE EXPORT BUTTONS */}
               <button
-                onClick={exportConfig}
-                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                onClick={exportJsonConfig}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                title="Export as Raw JSON"
               >
-                <Download className="w-4 h-4" />
-                Export Config
+                <FileText className="w-4 h-4" />
+                Export JSON
+              </button>
+              <button
+                onClick={exportCsvConfig}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                title="Export for Excel (CSV)"
+              >
+                <Table className="w-4 h-4" />
+                Export CSV
               </button>
             </div>
           </div>
