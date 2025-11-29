@@ -14,9 +14,11 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    // Fix: Explicitly allow extensions and suffixes to help module resolution
+    "moduleSuffixes": [".tsx", ".ts", ".jsx", ".js", ""],
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
-
